@@ -826,7 +826,7 @@
     // =========================================================================
     // กำหนดค่าเชื่อมต่อ Supabase เริ่มต้นตรงนี้ (หรือปล่อยว่างไว้เพื่อกรอกผ่านหน้าตั้งค่าได้)
     // =========================================================================
-    const DEFAULT_SUPABASE_URL = "";
+    const DEFAULT_SUPABASE_URL = "https://qvuviyueajtchprbafbk.supabase.co";
     const DEFAULT_SUPABASE_ANON_KEY = "";
 
     let productData = [];
@@ -886,7 +886,14 @@
     function getDatabaseConfig() {
       var url = safeStorage.getItem('db_url') || DEFAULT_SUPABASE_URL;
       var key = safeStorage.getItem('db_key') || DEFAULT_SUPABASE_ANON_KEY;
-      return { url: url.trim(), key: key.trim() };
+      url = url.trim();
+      if (url.endsWith('/')) {
+        url = url.substring(0, url.length - 1);
+      }
+      if (url.endsWith('/rest/v1')) {
+        url = url.substring(0, url.length - 8);
+      }
+      return { url: url, key: key.trim() };
     }
 
     function fetchDataFromServer() {

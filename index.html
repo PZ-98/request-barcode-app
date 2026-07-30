@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบขอบาร์โค้ดสินค้า (Supabase Edition)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-light: #e0e7ff;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --success: #10b981;
+      --success-light: #ecfdf5;
+      --danger: #ef4444;
+      --danger-light: #fef2f2;
+      --radius-lg: 16px;
+      --radius-md: 10px;
+      --radius-sm: 6px;
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Sarabun', sans-serif;
+      background-color: var(--bg);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding: 32px 16px;
+    }
+
+    .app-container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    header {
+      margin-bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    header h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-main);
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .btn-sync {
+      background-color: var(--primary-light);
+      color: var(--primary);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: var(--transition);
+      outline: none;
+    }
+
+    .btn-sync:hover {
+      background-color: var(--primary);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .btn-sync:active {
+      transform: translateY(0);
+    }
+
+    .btn-settings {
+      background-color: #f1f5f9;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .btn-settings:hover {
+      background-color: var(--text-muted);
+      color: #ffffff;
+    }
+
+    .sync-icon {
+      transition: transform 0.6s ease;
+    }
+
+    .btn-sync.spinning .sync-icon {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .status-badge {
+      background-color: var(--success-light);
+      color: var(--success);
+      padding: 6px 12px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(16, 185, 129, 0.1);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 5px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    /* Main Area Layout */
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    @media (min-width: 768px) {
+      .grid-layout {
+        grid-template-columns: 1.15fr 0.85fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+      padding: 24px;
+      position: relative;
+    }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    /* Form Design */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .search-container {
+      display: flex;
+      gap: 10px;
+      position: relative;
+    }
+
+    .input-text {
+      flex: 1;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text-main);
+      transition: var(--transition);
+      background-color: #fafafa;
+    }
+
+    .input-text:focus {
+      outline: none;
+      border-color: var(--primary);
+      background-color: var(--card-bg);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
+    .input-qty {
+      width: 80px;
+      padding: 12px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      font-family: inherit;
+      font-size: 14px;
+      text-align: center;
+      transition: var(--transition);
+      background-color: #fafafa;
+    }
+
+    .input-qty:focus {
+      outline: none;
+      border-color: var(--primary);
+      background-color: var(--card-bg);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
+    /* Autocomplete Dropdown */
+    .dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 90px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      margin-top: 6px;
+    }
+
+    .dropdown-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: var(--transition);
+    }
+
+    .dropdown-item:last-child {
+      border-bottom: none;
+    }
+
+    .dropdown-item.active, .dropdown-item:hover {
+      background-color: #f1f5f9;
+    }
+
+    .dropdown-item .desc {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .dropdown-item .no2 {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px 20px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: var(--transition);
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-copy {
+      background-color: #1e293b;
+      color: #ffffff;
+      width: 100%;
+      padding: 14px;
+      font-size: 15px;
+      box-shadow: var(--shadow-sm);
+      border-radius: var(--radius-md);
+      margin-top: 16px;
+    }
+
+    .btn-copy:hover {
+      background-color: #0f172a;
+      transform: translateY(-1px);
+    }
+
+    /* Selected Table */
+    .selected-table-container {
+      margin-top: 10px;
+      overflow-x: auto;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .table th, .table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .table th {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      background-color: #f8fafc;
+    }
+
+    .table td {
+      vertical-align: middle;
+    }
+
+    .tbl-desc {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-main);
+    }
+
+    .tbl-no {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Qty Control */
+    .qty-control {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background-color: #f8fafc;
+      overflow: hidden;
+    }
+
+    .qty-btn {
+      background: none;
+      border: none;
+      width: 28px;
+      height: 28px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: var(--transition);
+    }
+
+    .qty-btn:hover {
+      background-color: var(--border);
+      color: var(--text-main);
+    }
+
+    .qty-val {
+      padding: 0 10px;
+      font-size: 14px;
+      font-weight: 600;
+      min-width: 24px;
+      text-align: center;
+    }
+
+    .btn-delete {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: var(--radius-sm);
+      transition: var(--transition);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn-delete:hover {
+      color: var(--danger);
+      background-color: var(--danger-light);
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    /* Email simulated client view */
+    .email-client {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .email-header {
+      background-color: #f1f5f9;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      border-top-left-radius: var(--radius-lg);
+      border-top-right-radius: var(--radius-lg);
+      padding: 12px 18px;
+    }
+
+    .email-dots {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .email-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+
+    .email-dot.red { background-color: #fc5c57; }
+    .email-dot.yellow { background-color: #fdbd41; }
+    .email-dot.green { background-color: #35cc4b; }
+
+    .email-meta-row {
+      display: flex;
+      font-size: 13px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+    }
+
+    .email-meta-label {
+      color: var(--text-muted);
+      width: 70px;
+    }
+
+    .email-meta-value {
+      color: var(--text-main);
+      font-weight: 500;
+    }
+
+    .email-body {
+      width: 100%;
+      height: 250px;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-bottom-left-radius: var(--radius-lg);
+      border-bottom-right-radius: var(--radius-lg);
+      padding: 18px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--text-main);
+      resize: none;
+      line-height: 1.6;
+      outline: none;
+      background-color: #fafafa;
+      transition: var(--transition);
+    }
+
+    .email-body:focus {
+      background-color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    /* Settings Modal Styles */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(15, 23, 42, 0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-content {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      width: 90%;
+      max-width: 480px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      animation: modal-fadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modal-fadeIn {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-header h3 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: var(--transition);
+    }
+
+    .modal-close:hover {
+      color: var(--text-main);
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      background-color: #f8fafc;
+    }
+
+    /* Skeleton Loading UI */
+    .skeleton-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .skeleton-bar {
+      height: 20px;
+      background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 37%, #f1f5f9 63%);
+      background-size: 400% 100%;
+      animation: skeleton-loading 1.4s ease infinite;
+      border-radius: 4px;
+    }
+
+    .skeleton-bar.title {
+      width: 40%;
+      height: 28px;
+    }
+
+    .skeleton-bar.input {
+      width: 100%;
+      height: 48px;
+      border-radius: var(--radius-md);
+    }
+
+    .skeleton-bar.table {
+      width: 100%;
+      height: 120px;
+      border-radius: var(--radius-md);
+    }
+
+    @keyframes skeleton-loading {
+      0% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* Toast System */
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      background: #ffffff;
+      color: var(--text-main);
+      border-radius: var(--radius-md);
+      padding: 12px 18px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 280px;
+      transform: translateX(120%);
+      opacity: 0;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.35s ease;
+      border-left: 4px solid var(--primary);
+      pointer-events: auto;
+    }
+
+    .toast.show {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-left-color: var(--success);
+    }
+
+    .toast.success .toast-icon {
+      color: var(--success);
+    }
+
+    .toast.error {
+      border-left-color: var(--danger);
+    }
+
+    .toast.error .toast-icon {
+      color: var(--danger);
+    }
+
+    .toast-icon {
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .toast-msg {
+      font-size: 13px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <h1>ระบบขอบาร์โค้ดสินค้า</h1>
+      <div class="header-actions">
+        <!-- Settings Gear Button -->
+        <button id="settingsBtn" class="btn-sync btn-settings" onclick="openSettings()" title="ตั้งค่าการเชื่อมต่อฐานข้อมูล">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+          <span>ตั้งค่าเชื่อมต่อ</span>
+        </button>
+
+        <!-- Sync Button -->
+        <button id="syncBtn" class="btn-sync" onclick="forceRefreshData()" title="ดึงข้อมูลสินค้าใหม่จาก Supabase">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" class="sync-icon">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span>อัปเดตข้อมูล</span>
+        </button>
+
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span id="statusText">กำลังโหลดข้อมูล...</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Skeleton Loading Screen -->
+    <div id="skeletonLoader" class="card skeleton-container">
+      <div class="skeleton-bar title"></div>
+      <div class="skeleton-bar input"></div>
+      <div class="skeleton-bar table"></div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div id="mainWorkspace" class="grid-layout" style="display: none;">
+      
+      <!-- Left side: Product selection and configuration -->
+      <div class="card">
+        <div class="card-title">
+          <span>🔍 ค้นหาและระบุรายการสินค้า</span>
+        </div>
+
+        <div class="form-group">
+          <label for="searchInput">ค้นหาสินค้าจาก ชื่อรุ่น หรือ บาร์โค้ดเก่า</label>
+          <div class="search-container">
+            <input type="text" id="searchInput" class="input-text" placeholder="พิมพ์เพื่อค้นหา..." autocomplete="off">
+            <input type="number" id="qtyInput" class="input-qty" placeholder="จำนวน" min="1" value="1">
+            <button class="btn btn-primary" onclick="addItem()">เพิ่มรายการ</button>
+            <div id="dropdown" class="dropdown"></div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-top: 32px;">
+          <label>รายการสินค้าที่เลือกไว้:</label>
+          
+          <div id="emptyState" class="empty-state">
+            <span class="empty-icon">📦</span>
+            <p>ยังไม่มีสินค้าในรายการจัดส่ง</p>
+          </div>
+
+          <div class="selected-table-container">
+            <table id="selectedTable" class="table" style="display: none;">
+              <thead>
+                <tr>
+                  <th>รายละเอียดสินค้า</th>
+                  <th style="width: 120px;">จำนวน</th>
+                  <th style="width: 60px; text-align: center;">ลบ</th>
+                </tr>
+              </thead>
+              <tbody id="selectedTableBody">
+                <!-- Rows will be injected here -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side: simulated email generator client -->
+      <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <div class="card-title">
+            <span>✉️ ตัวอย่างอีเมลที่จะคัดลอก</span>
+          </div>
+
+          <div class="email-client">
+            <div class="email-header">
+              <div class="email-dots">
+                <span class="email-dot red"></span>
+                <span class="email-dot yellow"></span>
+                <span class="email-dot green"></span>
+              </div>
+              <div class="email-meta-row">
+                <span class="email-meta-label">ถึง:</span>
+                <span class="email-meta-value">wh.frame@visionventures.co.th</span>
+              </div>
+              <div class="email-meta-row">
+                <span class="email-meta-label">เรื่อง:</span>
+                <span class="email-meta-value">รบกวนขอบาร์โค้ดสำหรับติดตั้งหน้าสาขาเพิ่มเติม</span>
+              </div>
+            </div>
+            <textarea id="emailPreviewText" class="email-body" readonly placeholder="รายการสินค้าจะถูกฟอร์แมตในหน้านี้โดยอัตโนมัติ..."></textarea>
+          </div>
+        </div>
+
+        <button class="btn btn-copy" onclick="copyText()">
+          <span>📋 คัดลอกข้อความอีเมล (Copy)</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Settings Modal Dialog -->
+  <div id="settingsModal" class="modal-backdrop" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>⚙️ ตั้งค่าการเชื่อมต่อ Supabase</h3>
+        <button class="modal-close" onclick="closeSettings()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="dbUrlInput">Supabase Project URL:</label>
+          <input type="text" id="dbUrlInput" class="input-text" placeholder="https://xxxx.supabase.co" style="width: 100%;">
+        </div>
+        <div class="form-group" style="margin-top: 15px;">
+          <label for="dbKeyInput">Supabase Anon Key:</label>
+          <input type="password" id="dbKeyInput" class="input-text" placeholder="กรอก Anon Public API Key..." style="width: 100%;">
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); margin-top: 12px; line-height: 1.4;">
+          * ข้อมูลการเชื่อมต่อ API นี้จะถูกบันทึกไว้ในเบราว์เซอร์ของคุณอย่างปลอดภัยสำหรับการเรียกใช้บริการ
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" style="background-color: var(--border); color: var(--text-main);" onclick="closeSettings()">ยกเลิก</button>
+        <button class="btn btn-primary" onclick="saveSettings()">บันทึกข้อมูล</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Area -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script>
+    // =========================================================================
+    // กำหนดค่าเชื่อมต่อ Supabase เริ่มต้นตรงนี้ (หรือปล่อยว่างไว้เพื่อกรอกผ่านหน้าตั้งค่าได้)
+    // =========================================================================
+    const DEFAULT_SUPABASE_URL = "";
+    const DEFAULT_SUPABASE_ANON_KEY = "";
+
+    let productData = [];
+    let selectedItems = [];
+    let currentSelection = null;
+    let filteredProducts = [];
+    let activeIndex = -1;
+
+    // Helper to safely handle localStorage inside Google Apps Script sandboxed iframe
+    const safeStorage = {
+      getItem: function(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch (e) {
+          return null;
+        }
+      },
+      setItem: function(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          // Fallback gracefully on QuotaExceededError or SecurityError
+        }
+      },
+      removeItem: function(key) {
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {
+          // Ignore exceptions
+        }
+      }
+    };
+
+    // Initialize application and load cached/fresh catalog
+    window.onload = function() {
+      loadProductCatalog();
+    };
+
+    function loadProductCatalog() {
+      var cachedData = safeStorage.getItem('product_catalog_cache');
+      var cachedTime = safeStorage.getItem('product_catalog_cache_time');
+      var now = Date.now();
+      
+      if (cachedData && cachedTime && (now - cachedTime < 86400000)) {
+        try {
+          productData = JSON.parse(cachedData);
+          hideSkeletonLoader();
+          updateStatusText('ใช้งานข้อมูลจากแคชเบราว์เซอร์');
+          return;
+        } catch (e) {
+          safeStorage.removeItem('product_catalog_cache');
+        }
+      }
+      fetchDataFromServer();
+    }
+
+    function getDatabaseConfig() {
+      var url = safeStorage.getItem('db_url') || DEFAULT_SUPABASE_URL;
+      var key = safeStorage.getItem('db_key') || DEFAULT_SUPABASE_ANON_KEY;
+      return { url: url.trim(), key: key.trim() };
+    }
+
+    function fetchDataFromServer() {
+      var config = getDatabaseConfig();
+      if (!config.url || !config.key) {
+        showDatabaseConfigRequired();
+        return;
+      }
+      
+      updateStatusText('กำลังดึงข้อมูลล่าสุด...');
+      var url = config.url + '/rest/v1/products?select=*&order=description.asc';
+      
+      fetch(url, {
+        headers: {
+          'apikey': config.key,
+          'Authorization': 'Bearer ' + config.key
+        }
+      })
+      .then(function(res) {
+        if (!res.ok) throw new Error('API Response Error: ' + res.status);
+        return res.json();
+      })
+      .then(function(data) {
+        saveCatalogData(data);
+      })
+      .catch(function(err) {
+        handleFetchError(err);
+      });
+    }
+
+    function saveCatalogData(data) {
+      productData = data;
+      safeStorage.setItem('product_catalog_cache', JSON.stringify(data));
+      safeStorage.setItem('product_catalog_cache_time', Date.now().toString());
+      hideSkeletonLoader();
+      updateStatusText('เชื่อมต่อฐานข้อมูลสินค้าเรียบร้อย');
+    }
+
+    function handleFetchError(err) {
+      hideSkeletonLoader();
+      updateStatusText('การเชื่อมต่อล้มเหลว');
+      showToast('ดึงข้อมูลไม่สำเร็จ: ' + err.message, 'error');
+    }
+
+    function showDatabaseConfigRequired() {
+      updateStatusText('กรุณาตั้งค่าฐานข้อมูล');
+      hideSkeletonLoader();
+      openSettings();
+      showToast('กรุณากรอกข้อมูลการเชื่อมต่อ Supabase', 'error');
+    }
+
+    function forceRefreshData() {
+      var btn = document.getElementById('syncBtn');
+      btn.classList.add('spinning');
+      showToast('กำลังดึงข้อมูลล่าสุดจาก Supabase...', 'success');
+      safeStorage.removeItem('product_catalog_cache');
+      safeStorage.removeItem('product_catalog_cache_time');
+      
+      var config = getDatabaseConfig();
+      if (!config.url || !config.key) {
+        btn.classList.remove('spinning');
+        showDatabaseConfigRequired();
+        return;
+      }
+      
+      var url = config.url + '/rest/v1/products?select=*&order=description.asc';
+      fetch(url, {
+        headers: {
+          'apikey': config.key,
+          'Authorization': 'Bearer ' + config.key
+        }
+      })
+      .then(function(res) {
+        if (!res.ok) throw new Error('API Error: ' + res.status);
+        return res.json();
+      })
+      .then(function(data) {
+        saveCatalogData(data);
+        btn.classList.remove('spinning');
+        showToast('อัปเดตข้อมูลสินค้าล่าสุดสำเร็จ!', 'success');
+      })
+      .catch(function(err) {
+        btn.classList.remove('spinning');
+        handleFetchError(err);
+      });
+    }
+
+    // Modal Control Functions
+    function openSettings() {
+      var config = getDatabaseConfig();
+      document.getElementById('dbUrlInput').value = config.url;
+      document.getElementById('dbKeyInput').value = config.key;
+      document.getElementById('settingsModal').style.display = 'flex';
+    }
+
+    function closeSettings() {
+      document.getElementById('settingsModal').style.display = 'none';
+    }
+
+    function saveSettings() {
+      var url = document.getElementById('dbUrlInput').value.trim();
+      var key = document.getElementById('dbKeyInput').value.trim();
+      
+      if (!url || !key) {
+        showToast('กรุณากรอกข้อมูลให้ครบถ้วนครับ', 'error');
+        return;
+      }
+      if (url.endsWith('/')) {
+        url = url.substring(0, url.length - 1);
+      }
+      
+      safeStorage.setItem('db_url', url);
+      safeStorage.setItem('db_key', key);
+      closeSettings();
+      showToast('บันทึกการตั้งค่าแล้ว กำลังรีโหลด...', 'success');
+      
+      showSkeletonLoader();
+      fetchDataFromServer();
+    }
+
+    function updateStatusText(msg) {
+      document.getElementById('statusText').textContent = msg;
+    }
+
+    function showSkeletonLoader() {
+      document.getElementById('skeletonLoader').style.display = 'block';
+      document.getElementById('mainWorkspace').style.display = 'none';
+    }
+
+    function hideSkeletonLoader() {
+      document.getElementById('skeletonLoader').style.display = 'none';
+      document.getElementById('mainWorkspace').style.display = 'grid';
+      document.getElementById('searchInput').focus();
+    }
+
+    const searchInput = document.getElementById('searchInput');
+    const dropdown = document.getElementById('dropdown');
+
+    // Handle user inputs in search box
+    searchInput.addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase().trim();
+      activeIndex = -1;
+      currentSelection = null;
+
+      if (query.length === 0) {
+        closeDropdown();
+        return;
+      }
+
+      filteredProducts = productData.filter(item =>
+        (item.description && item.description.toString().toLowerCase().includes(query)) ||
+        (item.no2 && item.no2.toString().toLowerCase().includes(query))
+      );
+
+      renderDropdown();
+    });
+
+    // Close dropdown on click outside
+    document.addEventListener('click', function(e) {
+      if (e.target !== searchInput) {
+        closeDropdown();
+      }
+    });
+
+    // Listen to arrow key events for keyboard navigations
+    searchInput.addEventListener('keydown', handleKeyDown);
+
+    function handleKeyDown(e) {
+      if (dropdown.style.display !== 'block') return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = (activeIndex + 1) % filteredProducts.length;
+        renderDropdown();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = (activeIndex - 1 + filteredProducts.length) % filteredProducts.length;
+        renderDropdown();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeIndex > -1 && activeIndex < filteredProducts.length) {
+          selectItem(filteredProducts[activeIndex]);
+        }
+      }
+    }
+
+    // Support keyboard Enter on quantity input to add item immediately
+    document.getElementById('qtyInput').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        addItem();
+      }
+    });
+
+    function renderDropdown() {
+      dropdown.innerHTML = '';
+      if (filteredProducts.length === 0) {
+        dropdown.style.display = 'none';
+        return;
+      }
+
+      filteredProducts.forEach((item, index) => {
+        const el = createDropdownItem(item, index);
+        dropdown.appendChild(el);
+      });
+      dropdown.style.display = 'block';
+    }
+
+    function createDropdownItem(item, index) {
+      const el = document.createElement('div');
+      el.className = 'dropdown-item' + (index === activeIndex ? ' active' : '');
+      el.innerHTML = `
+        <div class="desc">${item.description}</div>
+        <div class="no2">No.2: ${item.no2 || '-'}</div>
+      `;
+      el.onclick = function() {
+        selectItem(item);
+      };
+      return el;
+    }
+
+    function selectItem(item) {
+      currentSelection = item;
+      searchInput.value = item.description;
+      closeDropdown();
+      document.getElementById('qtyInput').focus();
+    }
+
+    function closeDropdown() {
+      dropdown.style.display = 'none';
+      activeIndex = -1;
+    }
+
+    function addItem() {
+      const qtyInput = document.getElementById('qtyInput');
+      const qty = parseInt(qtyInput.value, 10);
+
+      if (!currentSelection) {
+        showToast('กรุณาคลิกเลือกสินค้าจากตัวเลือกแนะนำก่อนครับ', 'error');
+        return;
+      }
+      if (isNaN(qty) || qty <= 0) {
+        showToast('กรุณาระบุจำนวนสินค้าให้ถูกต้องครับ', 'error');
+        return;
+      }
+
+      const existingIndex = selectedItems.findIndex(i => i.no === currentSelection.no);
+      if (existingIndex > -1) {
+        selectedItems[existingIndex].qty += qty;
+      } else {
+        selectedItems.push({ ...currentSelection, qty: qty });
+      }
+
+      updateUI();
+      resetInputs();
+      showToast('เพิ่มสินค้าเข้าตารางสำเร็จแล้ว', 'success');
+    }
+
+    function resetInputs() {
+      searchInput.value = '';
+      document.getElementById('qtyInput').value = '1';
+      currentSelection = null;
+      searchInput.focus();
+    }
+
+    function removeItem(index) {
+      selectedItems.splice(index, 1);
+      updateUI();
+      showToast('ลบรายการสินค้าเรียบร้อยแล้ว', 'success');
+    }
+
+    function adjustQty(index, delta) {
+      const newQty = selectedItems[index].qty + delta;
+      if (newQty <= 0) {
+        removeItem(index);
+        return;
+      }
+      selectedItems[index].qty = newQty;
+      updateUI();
+    }
+
+    function updateUI() {
+      renderSelectedTable();
+      updateEmailPreview();
+    }
+
+    function renderSelectedTable() {
+      const tbody = document.getElementById('selectedTableBody');
+      const emptyState = document.getElementById('emptyState');
+      const table = document.getElementById('selectedTable');
+      
+      tbody.innerHTML = '';
+      if (selectedItems.length === 0) {
+        emptyState.style.display = 'block';
+        table.style.display = 'none';
+        return;
+      }
+
+      emptyState.style.display = 'none';
+      table.style.display = 'table';
+      
+      selectedItems.forEach((item, index) => {
+        tbody.appendChild(createTableRow(item, index));
+      });
+    }
+
+    function createTableRow(item, index) {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <div class="tbl-desc">${item.description}</div>
+          <div class="tbl-no">No: ${item.no} (No.2: ${item.no2 || '-'})</div>
+        </td>
+        <td>
+          <div class="qty-control">
+            <button class="qty-btn" onclick="adjustQty(${index}, -1)">-</button>
+            <span class="qty-val">${item.qty}</span>
+            <button class="qty-btn" onclick="adjustQty(${index}, 1)">+</button>
+          </div>
+        </td>
+        <td>
+          <button class="btn-delete" onclick="removeItem(${index})">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+              <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+              <path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+            </svg>
+          </button>
+        </td>
+      `;
+      return tr;
+    }
+
+    function updateEmailPreview() {
+      const preview = document.getElementById('emailPreviewText');
+      let emailText = "เรียนฝ่ายคลังสินค้า\n\nรบกวนขอบาร์โค้ด เพื่อนำมาติดตั้งกับสินค้าที่หน้าสาขา ดังนี้ครับ/ค่ะ\n\n";
+      
+      if (selectedItems.length === 0) {
+        preview.value = '';
+        return;
+      }
+
+      selectedItems.forEach((item, index) => {
+        emailText += `${index + 1}. No: ${item.no} (รายละเอียด: ${item.description}) จำนวน: ${item.qty} ชิ้น\n`;
+      });
+      
+      emailText += "\nรบกวนดำเนินการให้ด้วยครับ/ค่ะ\nขอบคุณครับ";
+      preview.value = emailText;
+    }
+
+    function copyText() {
+      const preview = document.getElementById('emailPreviewText');
+      if (selectedItems.length === 0) {
+        showToast('ยังไม่มีรายการสินค้าให้คัดลอกส่งเมลครับ', 'error');
+        return;
+      }
+      
+      preview.select();
+      document.execCommand('copy');
+      showToast('คัดลอกข้อความไปพร้อมส่งอีเมลแล้วครับ!', 'success');
+    }
+
+    // Custom Toast Notification System
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `
+        <span class="toast-icon">${type === 'success' ? '✓' : '⚠'}</span>
+        <span class="toast-msg">${message}</span>
+      `;
+      
+      container.appendChild(toast);
+      setTimeout(function() { toast.classList.add('show'); }, 10);
+      
+      setTimeout(function() {
+        toast.classList.remove('show');
+        setTimeout(function() { toast.remove(); }, 350);
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

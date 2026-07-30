@@ -1,0 +1,74 @@
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+      .setTitle('ระบบขอบาร์โค้ดสินค้า')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ดึงข้อมูลและจัดการดึงข้อมูลจากแคชฝั่งเซิร์ฟเวอร์
+function getProductData() {
+  var cache = CacheService.getScriptCache();
+  var cached = getCachedData(cache, "products");
+  if (cached) return cached;
+  
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var data = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+
+  var result = [];
+  for (var i = 0; i < data.length; i++) {
+    if (data[i][0] !== "") { 
+      result.push({
+        no: data[i][0],         
+        no2: data[i][1],        
+        description: data[i][2], 
+        brand: data[i][3]       
+      });
+    }
+  }
+  setCachedData(cache, "products", result, 21600); // 6 ชั่วโมง (สูงสุดของ GAS)
+  return result;
+}
+
+// ดึงข้อมูลขนาดใหญ่จากแคชที่ถูกหั่นเป็นส่วน ๆ
+function getCachedData(cache, prefix) {
+  var countStr = cache.get(prefix + "_parts_count");
+  if (!countStr) return null;
+  var count = parseInt(countStr, 10);
+  var jsonStr = "";
+  for (var i = 0; i < count; i++) {
+    var chunk = cache.get(prefix + "_part_" + i);
+    if (!chunk) return null;
+    jsonStr += chunk;
+  }
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    return null;
+  }
+}
+
+// หั่นข้อมูลที่เกิน 100KB เพื่อบันทึกลงแคชของเซิร์ฟเวอร์
+function setCachedData(cache, prefix, data, ttlSeconds) {
+  var jsonStr = JSON.stringify(data);
+  var chunkSize = 90000; // ~90KB ป้องกันเกินลิมิต 100KB ของ GAS
+  var partsCount = Math.ceil(jsonStr.length / chunkSize);
+  cache.put(prefix + "_parts_count", partsCount.toString(), ttlSeconds);
+  for (var i = 0; i < partsCount; i++) {
+    var chunk = jsonStr.substring(i * chunkSize, (i + 1) * chunkSize);
+    cache.put(prefix + "_part_" + i, chunk, ttlSeconds);
+  }
+}
+
+// ล้างแคชฝั่งเซิร์ฟเวอร์
+function clearProductCache() {
+  var cache = CacheService.getScriptCache();
+  var countStr = cache.get("products_parts_count");
+  if (countStr) {
+    var count = parseInt(countStr, 10);
+    for (var i = 0; i < count; i++) {
+      cache.remove("products_part_" + i);
+    }
+    cache.remove("products_parts_count");
+  }
+}

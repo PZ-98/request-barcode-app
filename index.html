@@ -682,14 +682,6 @@
     <header>
       <h1>ระบบขอบาร์โค้ดสินค้า</h1>
       <div class="header-actions">
-        <!-- Settings Gear Button -->
-        <button id="settingsBtn" class="btn-sync btn-settings" onclick="openSettings()" title="ตั้งค่าการเชื่อมต่อฐานข้อมูล">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-          <span>ตั้งค่าเชื่อมต่อ</span>
-        </button>
 
         <!-- Sync Button -->
         <button id="syncBtn" class="btn-sync" onclick="forceRefreshData()" title="ดึงข้อมูลสินค้าใหม่จาก Supabase">
@@ -792,32 +784,6 @@
     </div>
   </div>
 
-  <!-- Settings Modal Dialog -->
-  <div id="settingsModal" class="modal-backdrop" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>⚙️ ตั้งค่าการเชื่อมต่อ Supabase</h3>
-        <button class="modal-close" onclick="closeSettings()">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group">
-          <label for="dbUrlInput">Supabase Project URL:</label>
-          <input type="text" id="dbUrlInput" class="input-text" placeholder="https://xxxx.supabase.co" style="width: 100%;">
-        </div>
-        <div class="form-group" style="margin-top: 15px;">
-          <label for="dbKeyInput">Supabase Anon Key:</label>
-          <input type="password" id="dbKeyInput" class="input-text" placeholder="กรอก Anon Public API Key..." style="width: 100%;">
-        </div>
-        <p style="font-size: 11px; color: var(--text-muted); margin-top: 12px; line-height: 1.4;">
-          * ข้อมูลการเชื่อมต่อ API นี้จะถูกบันทึกไว้ในเบราว์เซอร์ของคุณอย่างปลอดภัยสำหรับการเรียกใช้บริการ
-        </p>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" style="background-color: var(--border); color: var(--text-main);" onclick="closeSettings()">ยกเลิก</button>
-        <button class="btn btn-primary" onclick="saveSettings()">บันทึกข้อมูล</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Toast Notification Area -->
   <div id="toast-container" class="toast-container"></div>
@@ -884,16 +850,15 @@
     }
 
     function getDatabaseConfig() {
-      var url = safeStorage.getItem('db_url') || DEFAULT_SUPABASE_URL;
-      var key = safeStorage.getItem('db_key') || DEFAULT_SUPABASE_ANON_KEY;
-      url = url.trim();
+      var url = DEFAULT_SUPABASE_URL.trim();
+      var key = DEFAULT_SUPABASE_ANON_KEY.trim();
       if (url.endsWith('/')) {
         url = url.substring(0, url.length - 1);
       }
       if (url.endsWith('/rest/v1')) {
         url = url.substring(0, url.length - 8);
       }
-      return { url: url, key: key.trim() };
+      return { url: url, key: key };
     }
 
     function fetchDataFromServer() {
@@ -941,8 +906,7 @@
     function showDatabaseConfigRequired() {
       updateStatusText('กรุณาตั้งค่าฐานข้อมูล');
       hideSkeletonLoader();
-      openSettings();
-      showToast('กรุณากรอกข้อมูลการเชื่อมต่อ Supabase', 'error');
+      showToast('กรุณาระบุ Supabase URL และ Key ในโค้ดโปรแกรม', 'error');
     }
 
     function forceRefreshData() {
@@ -979,39 +943,6 @@
         btn.classList.remove('spinning');
         handleFetchError(err);
       });
-    }
-
-    // Modal Control Functions
-    function openSettings() {
-      var config = getDatabaseConfig();
-      document.getElementById('dbUrlInput').value = config.url;
-      document.getElementById('dbKeyInput').value = config.key;
-      document.getElementById('settingsModal').style.display = 'flex';
-    }
-
-    function closeSettings() {
-      document.getElementById('settingsModal').style.display = 'none';
-    }
-
-    function saveSettings() {
-      var url = document.getElementById('dbUrlInput').value.trim();
-      var key = document.getElementById('dbKeyInput').value.trim();
-      
-      if (!url || !key) {
-        showToast('กรุณากรอกข้อมูลให้ครบถ้วนครับ', 'error');
-        return;
-      }
-      if (url.endsWith('/')) {
-        url = url.substring(0, url.length - 1);
-      }
-      
-      safeStorage.setItem('db_url', url);
-      safeStorage.setItem('db_key', key);
-      closeSettings();
-      showToast('บันทึกการตั้งค่าแล้ว กำลังรีโหลด...', 'success');
-      
-      showSkeletonLoader();
-      fetchDataFromServer();
     }
 
     function updateStatusText(msg) {

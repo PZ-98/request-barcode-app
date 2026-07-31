@@ -801,52 +801,101 @@
     let filteredProducts = [];
     let activeIndex = -1;
 
-    // Helper to safely handle localStorage inside Google Apps Script sandboxed iframe
-    const safeStorage = {
-      getItem: function(key) {
-        try {
-          return localStorage.getItem(key);
-        } catch (e) {
-          return null;
+    // IndexedDB Cache Configuration
+    const DB_NAME = 'BarcodeAppDB';
+    const DB_VERSION = 1;
+    const STORE_PRODUCTS = 'products';
+    const STORE_META = 'metadata';
+
+    function openAppDatabase() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = function(e) {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_PRODUCTS)) {
+            db.createObjectStore(STORE_PRODUCTS, { keyPath: 'no' });
+          }
+          if (!db.objectStoreNames.contains(STORE_META)) {
+            db.createObjectStore(STORE_META, { keyPath: 'key' });
+          }
+        };
+        req.onsuccess = function(e) { resolve(e.target.result); };
+        req.onerror = function(e) { reject(e.target.error); };
+      });
+    }
+
+    function saveProductsToDB(db, items) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_PRODUCTS], 'readwrite');
+        const store = tx.objectStore(STORE_PRODUCTS);
+        for (let i = 0; i < items.length; i++) {
+          store.put(items[i]);
         }
-      },
-      setItem: function(key, value) {
-        try {
-          localStorage.setItem(key, value);
-        } catch (e) {
-          // Fallback gracefully on QuotaExceededError or SecurityError
-        }
-      },
-      removeItem: function(key) {
-        try {
-          localStorage.removeItem(key);
-        } catch (e) {
-          // Ignore exceptions
-        }
-      }
-    };
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function(e) { reject(e.target.error); };
+      });
+    }
+
+    function clearProductsDB(db) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_PRODUCTS], 'readwrite');
+        tx.objectStore(STORE_PRODUCTS).clear();
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function(e) { reject(e.target.error); };
+      });
+    }
+
+    function getAllProductsFromDB(db) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_PRODUCTS], 'readonly');
+        const req = tx.objectStore(STORE_PRODUCTS).getAll();
+        req.onsuccess = function() { resolve(req.result || []); };
+        req.onerror = function(e) { reject(e.target.error); };
+      });
+    }
+
+    function getMetaFromDB(db, key) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_META], 'readonly');
+        const req = tx.objectStore(STORE_META).get(key);
+        req.onsuccess = function() { resolve(req.result ? req.result.value : null); };
+        req.onerror = function() { resolve(null); };
+      });
+    }
+
+    function setMetaInDB(db, key, value) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction([STORE_META], 'readwrite');
+        tx.objectStore(STORE_META).put({ key: key, value: value });
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function(e) { reject(e.target.error); };
+      });
+    }
 
     // Initialize application and load cached/fresh catalog
     window.onload = function() {
       loadProductCatalog();
     };
 
-    function loadProductCatalog() {
-      var cachedData = safeStorage.getItem('product_catalog_cache');
-      var cachedTime = safeStorage.getItem('product_catalog_cache_time');
-      var now = Date.now();
-      
-      if (cachedData && cachedTime && (now - cachedTime < 86400000)) {
-        try {
-          productData = JSON.parse(cachedData);
-          hideSkeletonLoader();
-          updateStatusText('ใช้งานข้อมูลจากแคชเบราว์เซอร์');
-          return;
-        } catch (e) {
-          safeStorage.removeItem('product_catalog_cache');
+    async function loadProductCatalog() {
+      try {
+        const db = await openAppDatabase();
+        const cachedTime = await getMetaFromDB(db, 'cache_time');
+        const now = Date.now();
+
+        if (cachedTime && (now - parseInt(cachedTime, 10) < 86400000)) {
+          const items = await getAllProductsFromDB(db);
+          if (items && items.length > 0) {
+            productData = items;
+            hideSkeletonLoader();
+            updateStatusText(`ใช้งานข้อมูลแคช IndexedDB (${items.length.toLocaleString()} ชิ้น)`);
+            return;
+          }
         }
+        await syncAllProductsFromSupabase(db);
+      } catch (err) {
+        handleFetchError(err);
       }
-      fetchDataFromServer();
     }
 
     function getDatabaseConfig() {
@@ -861,40 +910,64 @@
       return { url: url, key: key };
     }
 
-    function fetchDataFromServer() {
-      var config = getDatabaseConfig();
+    async function fetchBatch(config, start, limit) {
+      const end = start + limit - 1;
+      const url = config.url + '/rest/v1/products?select=*&order=description.asc';
+      const res = await fetch(url, {
+        headers: {
+          'apikey': config.key,
+          'Authorization': 'Bearer ' + config.key,
+          'Range': `${start}-${end}`,
+          'Prefer': 'count=exact'
+        }
+      });
+      if (!res.ok) throw new Error('API Response Error: ' + res.status);
+      const data = await res.json();
+      const contentRange = res.headers.get('content-range');
+      let total = null;
+      if (contentRange) {
+        const parts = contentRange.split('/');
+        if (parts.length > 1) total = parseInt(parts[1], 10);
+      }
+      return { items: data, total: total };
+    }
+
+    async function syncAllProductsFromSupabase(db) {
+      const config = getDatabaseConfig();
       if (!config.url || !config.key) {
         showDatabaseConfigRequired();
         return;
       }
       
-      updateStatusText('กำลังดึงข้อมูลล่าสุด...');
-      var url = config.url + '/rest/v1/products?select=*&order=description.asc';
-      
-      fetch(url, {
-        headers: {
-          'apikey': config.key,
-          'Authorization': 'Bearer ' + config.key
-        }
-      })
-      .then(function(res) {
-        if (!res.ok) throw new Error('API Response Error: ' + res.status);
-        return res.json();
-      })
-      .then(function(data) {
-        saveCatalogData(data);
-      })
-      .catch(function(err) {
-        handleFetchError(err);
-      });
-    }
+      updateStatusText('กำลังเชื่อมต่อฐานข้อมูล Supabase...');
+      const batchSize = 2500;
+      let start = 0;
+      let total = null;
+      let fetchedCount = 0;
 
-    function saveCatalogData(data) {
-      productData = data;
-      safeStorage.setItem('product_catalog_cache', JSON.stringify(data));
-      safeStorage.setItem('product_catalog_cache_time', Date.now().toString());
+      await clearProductsDB(db);
+
+      while (total === null || start < total) {
+        const batch = await fetchBatch(config, start, batchSize);
+        if (!batch.items || batch.items.length === 0) break;
+
+        await saveProductsToDB(db, batch.items);
+        fetchedCount += batch.items.length;
+        if (batch.total) total = batch.total;
+
+        const percent = total ? Math.round((fetchedCount / total) * 100) : 0;
+        const msg = total 
+          ? `กำลังโหลด... ${fetchedCount.toLocaleString()} / ${total.toLocaleString()} ชิ้น (${percent}%)`
+          : `กำลังโหลด... ${fetchedCount.toLocaleString()} ชิ้น`;
+        updateStatusText(msg);
+
+        start += batch.items.length;
+      }
+
+      await setMetaInDB(db, 'cache_time', Date.now().toString());
+      productData = await getAllProductsFromDB(db);
       hideSkeletonLoader();
-      updateStatusText('เชื่อมต่อฐานข้อมูลสินค้าเรียบร้อย');
+      updateStatusText(`เชื่อมต่อฐานข้อมูลเรียบร้อย (${productData.length.toLocaleString()} ชิ้น)`);
     }
 
     function handleFetchError(err) {
@@ -909,40 +982,20 @@
       showToast('กรุณาระบุ Supabase URL และ Key ในโค้ดโปรแกรม', 'error');
     }
 
-    function forceRefreshData() {
-      var btn = document.getElementById('syncBtn');
+    async function forceRefreshData() {
+      const btn = document.getElementById('syncBtn');
       btn.classList.add('spinning');
       showToast('กำลังดึงข้อมูลล่าสุดจาก Supabase...', 'success');
-      safeStorage.removeItem('product_catalog_cache');
-      safeStorage.removeItem('product_catalog_cache_time');
-      
-      var config = getDatabaseConfig();
-      if (!config.url || !config.key) {
-        btn.classList.remove('spinning');
-        showDatabaseConfigRequired();
-        return;
-      }
-      
-      var url = config.url + '/rest/v1/products?select=*&order=description.asc';
-      fetch(url, {
-        headers: {
-          'apikey': config.key,
-          'Authorization': 'Bearer ' + config.key
-        }
-      })
-      .then(function(res) {
-        if (!res.ok) throw new Error('API Error: ' + res.status);
-        return res.json();
-      })
-      .then(function(data) {
-        saveCatalogData(data);
-        btn.classList.remove('spinning');
+
+      try {
+        const db = await openAppDatabase();
+        await syncAllProductsFromSupabase(db);
         showToast('อัปเดตข้อมูลสินค้าล่าสุดสำเร็จ!', 'success');
-      })
-      .catch(function(err) {
-        btn.classList.remove('spinning');
+      } catch (err) {
         handleFetchError(err);
-      });
+      } finally {
+        btn.classList.remove('spinning');
+      }
     }
 
     function updateStatusText(msg) {
@@ -963,7 +1016,7 @@
     const searchInput = document.getElementById('searchInput');
     const dropdown = document.getElementById('dropdown');
 
-    // Handle user inputs in search box
+    // Handle user inputs in search box with max 50 items limit for high performance
     searchInput.addEventListener('input', function(e) {
       const query = e.target.value.toLowerCase().trim();
       activeIndex = -1;
@@ -974,11 +1027,20 @@
         return;
       }
 
-      filteredProducts = productData.filter(item =>
-        (item.description && item.description.toString().toLowerCase().includes(query)) ||
-        (item.no2 && item.no2.toString().toLowerCase().includes(query))
-      );
+      const matches = [];
+      for (let i = 0; i < productData.length; i++) {
+        const item = productData[i];
+        const matchDesc = item.description && item.description.toString().toLowerCase().includes(query);
+        const matchNo2 = item.no2 && item.no2.toString().toLowerCase().includes(query);
+        const matchNo = item.no && item.no.toString().toLowerCase().includes(query);
+        
+        if (matchDesc || matchNo2 || matchNo) {
+          matches.push(item);
+          if (matches.length >= 50) break;
+        }
+      }
 
+      filteredProducts = matches;
       renderDropdown();
     });
 
